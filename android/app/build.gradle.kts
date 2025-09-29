@@ -1,9 +1,18 @@
+import com.android.build.gradle.internal.cxx.configure.gradleLocalProperties
+
+
+
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+    // Load values from local.properties
+   val localProps = gradleLocalProperties(rootDir, providers)
+    val mapsApiKey: String = localProps.getProperty("MAPS_API_KEY") ?: ""
 
 android {
     namespace = "com.example.runners_application"
@@ -28,6 +37,9 @@ android {
         targetSdk = 33
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Inject Google Maps API key from local.properties
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {

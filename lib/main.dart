@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:runners_application/views/profile/profile_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'views/home/home_screen.dart';
@@ -9,11 +10,17 @@ import 'views/run/routes_explorer_screen.dart';
 import 'views/home/route_detail_screen.dart';
 
 void main() async {
+   // Make sure Flutter is ready
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Load environment variables from .env
+  await dotenv.load(fileName: ".env");
+  
+  
+  // Initialize Supabase
   await Supabase.initialize(
     url: 'https://vdehpugshsdjkuxrlnjx.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkZWhwdWdzaHNkamt1eHJsbmp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMjYyMTksImV4cCI6MjA3MzgwMjIxOX0.0aYWRCR5l-uqciQXJ_DIt5xslXZjxq8VVqfCZuPYlrA',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
   runApp(const MyApp());
