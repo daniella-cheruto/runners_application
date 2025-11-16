@@ -42,7 +42,12 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
       (v == null || v.trim().isEmpty) ? 'Required' : null;
 
   void _recomputeDistance() {
-    final d = Geolocator.distanceBetween(startLat, startLng, endLat, endLng).round();
+    final d = Geolocator.distanceBetween(
+      startLat,
+      startLng,
+      endLat,
+      endLng,
+    ).round();
     _cDist.text = d.toString();
     setState(() {});
   }
@@ -53,9 +58,9 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
 
     final dist = int.tryParse(_cDist.text.trim()) ?? 0;
     if (dist <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Distance is invalid')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Distance is invalid')));
       return;
     }
 
@@ -73,29 +78,48 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
 
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Route added')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Route added')));
       Navigator.pop(context, true);
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Failed to add route')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to add route')));
     }
   }
 
+  // 🔹 Draggable markers for Start & End
   Set<Marker> _markers() => {
-        Marker(
-          markerId: const MarkerId('start'),
-          position: LatLng(startLat, startLng),
-          infoWindow: const InfoWindow(title: 'Start'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        ),
-        Marker(
-          markerId: const MarkerId('end'),
-          position: LatLng(endLat, endLng),
-          infoWindow: const InfoWindow(title: 'End'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        ),
-      };
+    Marker(
+      markerId: const MarkerId('start'),
+      position: LatLng(startLat, startLng),
+      infoWindow: const InfoWindow(title: 'Start'),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      draggable: true,
+      onDragEnd: (pos) {
+        setState(() {
+          startLat = pos.latitude;
+          startLng = pos.longitude;
+          _recomputeDistance();
+        });
+      },
+    ),
+    Marker(
+      markerId: const MarkerId('end'),
+      position: LatLng(endLat, endLng),
+      infoWindow: const InfoWindow(title: 'End'),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      draggable: true,
+      onDragEnd: (pos) {
+        setState(() {
+          endLat = pos.latitude;
+          endLng = pos.longitude;
+          _recomputeDistance();
+        });
+      },
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -144,8 +168,10 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                                   shape: BoxShape.circle,
                                 ),
                                 padding: const EdgeInsets.all(10),
-                                child: const Icon(Icons.add_location_alt,
-                                    color: Colors.purple),
+                                child: const Icon(
+                                  Icons.add_location_alt,
+                                  color: Colors.purple,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Text(
@@ -191,16 +217,22 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Chip(
-                                avatar: const Icon(Icons.flag_outlined,
-                                    size: 18, color: Colors.purple),
+                                avatar: const Icon(
+                                  Icons.flag_outlined,
+                                  size: 18,
+                                  color: Colors.purple,
+                                ),
                                 label: Text(
                                   'Start: ${startLat.toStringAsFixed(4)}, ${startLng.toStringAsFixed(4)}',
                                 ),
                                 backgroundColor: const Color(0xFFF5E9FF),
                               ),
                               Chip(
-                                avatar: const Icon(Icons.outlined_flag,
-                                    size: 18, color: Colors.purple),
+                                avatar: const Icon(
+                                  Icons.outlined_flag,
+                                  size: 18,
+                                  color: Colors.purple,
+                                ),
                                 label: Text(
                                   'End: ${endLat.toStringAsFixed(4)}, ${endLng.toStringAsFixed(4)}',
                                 ),
@@ -237,7 +269,7 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // 🗺️ Map
+                          // 🗺️ Map (tap + drag)
                           SizedBox(
                             height: 260,
                             child: ClipRRect(
@@ -248,7 +280,7 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                                   zoom: 14,
                                 ),
                                 markers: _markers(),
-                                fitToMarkers: true,
+                                fitToMarkers: false,
                                 onTap: (pos) {
                                   setState(() {
                                     if (_selectingStart) {
@@ -267,7 +299,7 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                           const SizedBox(height: 20),
 
                           Text(
-                            'Tip: tap the map to set Start/End. Distance updates automatically.',
+                            'Tip: tap the map or drag the markers to set Start/End. Distance updates automatically.',
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: Colors.grey[700],

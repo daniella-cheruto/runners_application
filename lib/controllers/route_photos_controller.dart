@@ -1,3 +1,4 @@
+// lib/controllers/route_photos_controller.dart
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -50,13 +51,50 @@ class RoutePhotosController {
       'route_id': routeId,
       'user_id': user.id,
       'storage_path': objectPath, // e.g., route_9/xxx.jpg
-      'url': publicUrl,           // full https URL (handy for rendering)
+      'url': publicUrl, // full https URL (handy for rendering)
       'caption': caption,
       'is_public': true,
       'is_approved': true,
     });
 
     return true;
+  }
+
+  /// Delete a photo (only if it belongs to the current user).
+  /// Returns null on success, or an error message.
+  Future<String?> deletePhoto(RoutePhoto photo) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return 'You must be logged in';
+
+    // Must match RLS on route_photos and storage.objects
+    if (photo.userId != user.id) {
+      return 'You can only delete your own photo';
+    }
+
+    try {
+      // Derive the storage object path (handles with/without bucket prefix)
+      final parts = photo.storagePath.split('/');
+      final hasBucketPrefix = parts.isNotEmpty && parts.first == bucket;
+      final objectPath = hasBucketPrefix
+          ? parts.sublist(1).join('/')
+          : photo.storagePath;
+
+      // 1) Delete from Storage bucket
+      await _client.storage.from(bucket).remove([objectPath]);
+
+      // 2) Delete from DB table
+      await _client
+          .from('route_photos')
+          .delete()
+          .eq('id', photo.id)
+          .eq('user_id', user.id);
+
+      return null; // success
+    } on PostgrestException catch (e) {
+      return e.message;
+    } catch (e) {
+      return 'Unexpected error: $e';
+    }
   }
 
   /// Public URL when you stored ONLY the object path (recommended).
@@ -75,10 +113,17 @@ class RoutePhotosController {
   }
 
   /// Signed URL helper (useful if you later switch bucket to PRIVATE).
-  Future<String> getSignedUrl(String storagePath, {int expiresInSec = 3600}) async {
+  Future<String> getSignedUrl(
+    String storagePath, {
+    int expiresInSec = 3600,
+  }) async {
     final parts = storagePath.split('/');
     final hasBucketPrefix = parts.isNotEmpty && parts.first == bucket;
-    final objectPath = hasBucketPrefix ? parts.sublist(1).join('/') : storagePath;
-    return _client.storage.from(bucket).createSignedUrl(objectPath, expiresInSec);
+    final objectPath = hasBucketPrefix
+        ? parts.sublist(1).join('/')
+        : storagePath;
+    return _client.storage
+        .from(bucket)
+        .createSignedUrl(objectPath, expiresInSec);
   }
 }

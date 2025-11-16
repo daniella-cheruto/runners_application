@@ -8,8 +8,8 @@ class MapWidget extends StatefulWidget {
     this.markers = const <Marker>{},
     this.polylines = const <Polyline>{},
     this.onTap,
-    this.myLocationEnabled = true,
-    this.myLocationButtonEnabled = true,
+    this.myLocationEnabled = false, //  default off (safer)
+    this.myLocationButtonEnabled = false, //  default off
     this.fitToMarkers = false,
     this.padding = 60,
     this.onMapCreated,
@@ -61,32 +61,45 @@ class _MapWidgetState extends State<MapWidget> {
   void _fitToMarkers() {
     final controller = _controller;
     if (controller == null) return;
+
     if (widget.markers.isEmpty) {
       // No markers to fit: just ensure we’re at the initial position.
-      controller.animateCamera(CameraUpdate.newCameraPosition(widget.initialPosition));
+      controller.animateCamera(
+        CameraUpdate.newCameraPosition(widget.initialPosition),
+      );
       return;
     }
 
     double? minLat, maxLat, minLng, maxLng;
     for (final m in widget.markers) {
       final p = m.position;
-      minLat = (minLat == null) ? p.latitude  : (p.latitude  < minLat ? p.latitude  : minLat);
-      maxLat = (maxLat == null) ? p.latitude  : (p.latitude  > maxLat ? p.latitude  : maxLat);
-      minLng = (minLng == null) ? p.longitude : (p.longitude < minLng ? p.longitude : minLng);
-      maxLng = (maxLng == null) ? p.longitude : (p.longitude > maxLng ? p.longitude : maxLng);
+      minLat = (minLat == null)
+          ? p.latitude
+          : (p.latitude < minLat ? p.latitude : minLat);
+      maxLat = (maxLat == null)
+          ? p.latitude
+          : (p.latitude > maxLat ? p.latitude : maxLat);
+      minLng = (minLng == null)
+          ? p.longitude
+          : (p.longitude < minLng ? p.longitude : minLng);
+      maxLng = (maxLng == null)
+          ? p.longitude
+          : (p.longitude > maxLng ? p.longitude : maxLng);
     }
 
-    // If for some reason we still couldn't compute bounds, bail out.
-    if (minLat == null || maxLat == null || minLng == null || maxLng == null) return;
+    if (minLat == null || maxLat == null || minLng == null || maxLng == null) {
+      return;
+    }
 
     final bounds = LatLngBounds(
       southwest: LatLng(minLat, minLng),
       northeast: LatLng(maxLat, maxLng),
     );
 
-    // Schedule after this frame to avoid layout timing issues.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller?.animateCamera(CameraUpdate.newLatLngBounds(bounds, widget.padding));
+      _controller?.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, widget.padding),
+      );
     });
   }
 
@@ -106,6 +119,8 @@ class _MapWidgetState extends State<MapWidget> {
           _fitToMarkers();
         }
       },
+      // Gestures are enabled by default, so you can pan/zoom freely.
+      // add flags here.
     );
   }
 }
