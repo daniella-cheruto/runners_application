@@ -61,13 +61,15 @@ class RunHistoryScreen extends StatelessWidget {
               return ListTile(
                 title: Text(routeName),
                 subtitle: Text(
-                  '${_formatDate(started)}  •  ${distanceKm.toStringAsFixed(2)} km  •  ${_formatDuration(duration)}',
+                  '${_formatDate(started)}  •  '
+                  '${distanceKm.toStringAsFixed(2)} km  •  '
+                  '${_formatDuration(duration)}',
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
                   final runId = row['id'] as int;
 
-                  // 1) Fetch GPS points for this run
+                  // 1) Fetch GPS points
                   final pointsResp = await client
                       .from('run_points')
                       .select('lat,lng')
@@ -94,7 +96,7 @@ class RunHistoryScreen extends StatelessWidget {
                     endedAt: DateTime.parse(row['ended_at'] as String),
                   );
 
-                  // 3) (Optional) create a lightweight RouteModel if needed
+                  // 3) Lightweight RouteModel
                   RouteModel? routeModel;
                   if (routeInfo != null) {
                     routeModel = RouteModel(
@@ -134,12 +136,23 @@ class RunHistoryScreen extends StatelessWidget {
     );
   }
 
+  /// NEW: Formats duration as HH:MM:SS if run lasted over 1 hour
   static String _formatDuration(Duration d) {
-    final m = d.inMinutes;
-    final s = d.inSeconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    String two(int n) => n.toString().padLeft(2, '0');
+
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60);
+    final seconds = d.inSeconds.remainder(60);
+
+    if (hours > 0) {
+      return '${two(hours)}:${two(minutes)}:${two(seconds)}';
+    } else {
+      return '${two(minutes)}:${two(seconds)}';
+    }
   }
 
-  static String _formatDate(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  static String _formatDate(DateTime d) {
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
 }

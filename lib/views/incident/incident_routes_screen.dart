@@ -1,18 +1,18 @@
-// lib/views/feedback/feedback_routes_screen.dart
+// lib/views/incident/incident_routes_screen.dart
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '/models/route_model.dart';
-import 'community_feedback_screen.dart';
+import 'report_incident_screen.dart';
 
-class FeedbackRoutesScreen extends StatefulWidget {
-  const FeedbackRoutesScreen({super.key});
+class IncidentRoutesScreen extends StatefulWidget {
+  const IncidentRoutesScreen({super.key});
 
   @override
-  State<FeedbackRoutesScreen> createState() => _FeedbackRoutesScreenState();
+  State<IncidentRoutesScreen> createState() => _IncidentRoutesScreenState();
 }
 
-class _FeedbackRoutesScreenState extends State<FeedbackRoutesScreen> {
+class _IncidentRoutesScreenState extends State<IncidentRoutesScreen> {
   late Future<List<RouteModel>> _routesFuture;
 
   @override
@@ -33,24 +33,13 @@ class _FeedbackRoutesScreenState extends State<FeedbackRoutesScreen> {
     return list;
   }
 
-  // 🔁 Helper to refresh routes after returning from feedback screen
-  Future<void> _reloadRoutes() async {
-    final routes = await _fetchRoutes();
-    if (!mounted) return;
-
-    setState(() {
-      // wrap in Future.value so it still matches FutureBuilder's expected type
-      _routesFuture = Future.value(routes);
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     const purple = Color(0xFF9C27B0);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Community Feedback'),
+        title: const Text('Report Incident – Choose Route'),
         backgroundColor: purple,
       ),
       body: FutureBuilder<List<RouteModel>>(
@@ -64,9 +53,12 @@ class _FeedbackRoutesScreenState extends State<FeedbackRoutesScreen> {
               child: Text('Failed to load routes: ${snapshot.error}'),
             );
           }
+
           final routes = snapshot.data ?? [];
           if (routes.isEmpty) {
-            return const Center(child: Text('No routes found yet.'));
+            return const Center(
+              child: Text('No routes available to report incidents on.'),
+            );
           }
 
           return ListView.separated(
@@ -85,16 +77,14 @@ class _FeedbackRoutesScreenState extends State<FeedbackRoutesScreen> {
                   '$distanceKm km • rating ${r.averageRating.toStringAsFixed(1)} ★',
                 ),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () async {
-                  await Navigator.push(
+                onTap: () {
+                  // When user taps a route, go to ReportIncidentScreen for that route
+                  Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => CommunityFeedbackScreen(route: r),
+                      builder: (_) => ReportIncidentScreen(route: r),
                     ),
                   );
-
-                  // 🔁 Refresh ratings when you return from the feedback screen
-                  await _reloadRoutes();
                 },
               );
             },

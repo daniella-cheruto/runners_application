@@ -27,6 +27,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
+  // Inline error (no SnackBar)
+  String? _errorMessage;
+
   // --- Validators ---
   String? _validateName(String? v) {
     if (v == null || v.trim().isEmpty) return 'Please enter your full name';
@@ -52,17 +55,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _validateConfirm(String? v) {
     final value = v?.trim() ?? '';
     if (value.isEmpty) return 'Please confirm your password';
-    if (value != _passwordController.text.trim()) return "Passwords don't match";
+    if (value != _passwordController.text.trim()) {
+      return "Passwords don't match";
+    }
     return null;
   }
 
   // --- Actions ---
   Future<void> _register() async {
     FocusScope.of(context).unfocus();
+    setState(() => _errorMessage = null); // clear previous error
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
     try {
+      // AuthController.register should return:
+      //  - true   => success
+      //  - false  => generic failure
+      //  - String => specific error message (e.g. "Email already registered")
       final ok = await _authController.register(
         _emailController.text.trim(),
         _passwordController.text.trim(),
@@ -73,6 +84,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (ok == true) {
         Navigator.pushReplacementNamed(context, '/home');
+
         final userId = _authController.getCurrentUser()?.id;
         if (userId != null) {
           await _userController.createUserProfile(
@@ -84,17 +96,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
         }
       } else {
-        final msg = (ok is String && ok.isNotEmpty) ? ok : 'Registration failed';
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(msg)));
+        final msg = (ok is String && ok.isNotEmpty)
+            ? ok
+            : 'Registration failed. Please try again.';
+        setState(() => _errorMessage = msg);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unexpected error: $e')),
-      );
+      setState(() => _errorMessage = 'Unexpected error: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -168,7 +181,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 : Icons.visibility,
                           ),
                           onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                           tooltip: _obscurePassword
                               ? 'Show password'
                               : 'Hide password',
@@ -190,12 +204,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 : Icons.visibility,
                           ),
                           onPressed: () => setState(
-                              () => _obscureConfirm = !_obscureConfirm),
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
                           tooltip: _obscureConfirm
                               ? 'Show password'
                               : 'Hide password',
                         ),
-                        onSubmitted: (_) => _isLoading ? null : _register(),
+                        onSubmitted: (_) {
+                          if (!_isLoading) _register();
+                        },
                       ),
                       const SizedBox(height: 24),
 
@@ -209,6 +226,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           loading: _isLoading,
                         ),
                       ),
+
+                      // Inline error message (no SnackBar)
+                      if (_errorMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.red.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.redAccent,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: const TextStyle(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
                       const SizedBox(height: 12),
 
                       TextButton(
@@ -222,8 +275,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 12),
                 Text(
                   'By creating an account you agree to our Terms and Privacy Policy.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: const Color.fromARGB(229, 0, 0, 0)),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: const Color.fromARGB(229, 0, 0, 0),
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],

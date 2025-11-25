@@ -14,10 +14,23 @@ class RunSummaryScreen extends StatelessWidget {
 
   const RunSummaryScreen({super.key, this.route, required this.run, this.path});
 
+  // 🔹 Format duration as HH:MM:SS (or MM:SS if < 1 hour)
   String get _timeText {
-    final m = run.duration.inMinutes;
-    final s = run.duration.inSeconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    final d = run.duration;
+
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60);
+    final seconds = d.inSeconds.remainder(60);
+
+    if (hours > 0) {
+      // e.g. 01:13:08
+      return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
+    } else {
+      // e.g. 13:08
+      return '${twoDigits(minutes)}:${twoDigits(seconds)}';
+    }
   }
 
   String get _paceText {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '/controllers/home_controller.dart';
+import '/controllers/profile_controller.dart';
 import '/models/user_model.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -11,14 +13,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final HomeController _homeController = HomeController();
+  final ProfileController _profileController = ProfileController();
+
   late Future<UserModel?> _userFuture;
 
   @override
   void initState() {
     super.initState();
+
+    // 👉 Get auth user (for id), then load full profile via ProfileController
     final currentUser = _homeController.getCurrentUserModel();
     if (currentUser != null) {
-      _userFuture = _homeController.fetchUserProfile(currentUser.id);
+      _userFuture = _profileController.fetchUserProfile(currentUser.id);
     } else {
       _userFuture = Future.value(null);
     }
@@ -28,7 +34,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Runner Dashboard"),
+        // 🔹 Title now reacts to whether the user is admin or not
+        title: FutureBuilder<UserModel?>(
+          future: _userFuture,
+          builder: (context, snapshot) {
+            // default if still loading or no user
+            if (snapshot.connectionState == ConnectionState.waiting ||
+                !snapshot.hasData) {
+              return const Text('Runner Dashboard');
+            }
+
+            final user = snapshot.data!;
+            return Text(user.isAdmin ? 'Admin Dashboard' : 'Runner Dashboard');
+          },
+        ),
         backgroundColor: Colors.purple,
         elevation: 0,
         actions: [
@@ -56,27 +75,34 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 60),
-              FutureBuilder<UserModel?>(
-                future: _userFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  }
+          child: FutureBuilder<UserModel?>(
+            future: _userFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                  final user =
-                      snapshot.data ?? _homeController.getCurrentUserModel();
+              if (snapshot.hasError) {
+                // just log; still show dashboard with fallback
+                debugPrint('Home profile error: ${snapshot.error}');
+              }
 
-                  // Prefer full name, fallback to "Runner"
-                  final name =
-                      (user?.fullName != null && user!.fullName!.isNotEmpty)
-                      ? user.fullName!
-                      : 'Runner';
+              // This user comes from the SAME place as ProfileScreen
+              final user =
+                  snapshot.data ?? _homeController.getCurrentUserModel();
 
-                  return Text(
+              // Prefer full name from profile; fallback to "Runner"
+              final name = (user != null && user.fullName.isNotEmpty)
+                  ? user.fullName
+                  : 'Runner';
+
+              final bool isAdmin = user?.isAdmin ?? false;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 60),
+                  Text(
                     "Welcome, $name",
                     style: const TextStyle(
                       fontSize: 24,
@@ -84,58 +110,67 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.black87,
                     ),
                     textAlign: TextAlign.center,
-                  );
-                },
-              ),
-              const SizedBox(height: 30),
-              Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _buildActionCard(
-                      context,
-                      icon: Icons.map,
-                      label: "View Safe Routes",
-                      route: '/routes-explorer',
-                      color: Colors.teal,
+                  ),
+                  const SizedBox(height: 30),
+                  Expanded(
+                    child: GridView.count(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _buildActionCard(
+                          context,
+                          icon: Icons.map,
+                          label: "View Safe Routes",
+                          route: '/routes-explorer',
+                          color: Colors.teal,
+                        ),
+                        _buildActionCard(
+                          context,
+                          icon: Icons.timeline,
+                          label: "Run History",
+                          route: '/run-history',
+                          color: Colors.indigo,
+                        ),
+                        _buildActionCard(
+                          context,
+                          icon: Icons.feedback,
+                          label: "Community Feedback",
+                          route: '/feedback-routes',
+                          color: Colors.orange,
+                        ),
+                        _buildActionCard(
+                          context,
+                          icon: Icons.person,
+                          label: "Profile",
+                          route: '/profile',
+                          color: Colors.pink,
+                        ),
+                        _buildActionCard(
+                          context,
+                          icon: Icons.report_problem,
+                          label: "Incident Report",
+                          route: '/incident-routes',
+                          color: const Color.fromARGB(255, 243, 47, 47),
+                        ),
+
+                        // 👑 Admin Panel card – only for admins
+                        if (isAdmin)
+                          _buildActionCard(
+                            context,
+                            icon: Icons.admin_panel_settings,
+                            label: "Admin Panel",
+                            route: '/admin',
+                            color: Colors.deepPurple,
+                          ),
+                      ],
                     ),
-                    _buildActionCard(
-                      context,
-                      icon: Icons.timeline,
-                      label: "Run History",
-                      route: '/run-history',
-                      color: Colors.indigo,
-                    ),
-                    _buildActionCard(
-                      context,
-                      icon: Icons.feedback,
-                      label: "Community Feedback",
-                      route: '/feedback-routes',
-                      color: Colors.orange,
-                    ),
-                    _buildActionCard(
-                      context,
-                      icon: Icons.person,
-                      label: "Profile",
-                      route: '/profile',
-                      color: Colors.pink,
-                    ),
-                    // Incident Report card
-                    _buildActionCard(
-                      context,
-                      icon: Icons.report_problem,
-                      label: "Incident Report",
-                      route: '/incident-report',
-                      color: const Color.fromARGB(255, 243, 47, 47),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

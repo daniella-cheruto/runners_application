@@ -5,11 +5,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '/models/route_model.dart';
 import '/models/route_photo_model.dart';
 import '/models/route_feedback_model.dart';
+import '/models/incident_report_model.dart';
 
 import '/controllers/route_photos_controller.dart';
 import '/controllers/route_feedback_controller.dart';
+import '/controllers/incident_report_controller.dart';
 
 import '../feedback/community_feedback_screen.dart';
+import '/views/incident/route_incidents_screen.dart';
+
 import 'widgets/route_header.dart';
 import 'widgets/route_photos_section.dart';
 import 'widgets/start_run_button.dart';
@@ -25,6 +29,7 @@ class RouteDetailScreen extends StatefulWidget {
 class _RouteDetailScreenState extends State<RouteDetailScreen> {
   final _photosCtrl = RoutePhotosController();
   final _feedbackCtrl = RouteFeedbackController();
+  final _incidentCtrl = IncidentReportController();
 
   late Future<List<RoutePhoto>> _photosFuture;
   late Future<List<RouteFeedback>> _feedbackFuture;
@@ -34,7 +39,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   String? _statusMessage;
   Color _statusColor = Colors.green;
 
-  // 👇 NEW: dynamic average rating from feedback
+  // dynamic average rating from feedback
   double? _avgRating; // null = no feedback yet
 
   @override
@@ -43,10 +48,10 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     final routeId = widget.route.routeId;
     _photosFuture = _photosCtrl.list(routeId);
     _feedbackFuture = _feedbackCtrl.fetchForRoute(routeId);
-    _loadAverageRating(); //  also load average rating from feedback
+    _loadAverageRating(); // also load average rating from feedback
   }
 
-  // 🔹 Load avg rating from route_feedback (using your controller’s method)
+  // Load avg rating from route_feedback
   Future<void> _loadAverageRating() async {
     try {
       final avg = await _feedbackCtrl.averageForRoute(widget.route.routeId);
@@ -211,7 +216,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
             RouteHeader(
               route: r,
               overrideAverageRating:
-                  _avgRating, // 👈 this comes from feedback table
+                  _avgRating, // this comes from feedback table
             ),
 
             const SizedBox(height: 24),
@@ -239,9 +244,189 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
               ),
             ],
 
+            // 3) Safety incidents (only shows if there is at least 1)
+            FutureBuilder<List<IncidentReport>>(
+              future: _incidentCtrl.fetchForRoute(widget.route.routeId),
+              builder: (context, snapshot) {
+                // hide while loading
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox.shrink();
+                }
+
+                // hide completely if error or empty
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    (snapshot.data?.isEmpty ?? true)) {
+                  return const SizedBox.shrink();
+                }
+
+                final incidents = snapshot.data!;
+                final latest = incidents.first;
+
+                // severity chip color
+                Color chipBg;
+                Color chipText;
+                switch (latest.severity.toLowerCase()) {
+                  case 'high':
+                    chipBg = Colors.red.shade50;
+                    chipText = Colors.red.shade700;
+                    break;
+                  case 'medium':
+                    chipBg = Colors.orange.shade50;
+                    chipText = Colors.orange.shade700;
+                    break;
+                  default:
+                    chipBg = Colors.green.shade50;
+                    chipText = Colors.green.shade700;
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 28),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Safety Incidents',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    RouteIncidentsScreen(route: widget.route),
+                              ),
+                            );
+                          },
+                          child: const Text('View all'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                RouteIncidentsScreen(route: widget.route),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 6,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            // left icon
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: purple.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.purple,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+
+                            // main content
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          '${latest.incidentType} • ${latest.severity}',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: chipBg,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          latest.severity,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: chipText,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if ((latest.description ?? '')
+                                      .trim()
+                                      .isNotEmpty)
+                                    Text(
+                                      latest.description!,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatDateTime(latest.createdAt),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const Icon(
+                              Icons.chevron_right,
+                              color: Colors.black38,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+
             const SizedBox(height: 28),
 
-            // 3) Latest community comments (REAL data)
+            // 4) Latest community comments (REAL data)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -289,10 +474,12 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                 }
 
                 // show at most 2 comments here
-                final latest = list.length <= 2 ? list : list.take(2).toList();
+                final latestComments = list.length <= 2
+                    ? list
+                    : list.take(2).toList();
 
                 return Column(
-                  children: latest.map((f) {
+                  children: latestComments.map((f) {
                     return Card(
                       elevation: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -350,7 +537,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
             const SizedBox(height: 32),
 
-            // 4) Start Run button
+            // 5) Start Run button
             StartRunButton(route: r, color: purple),
           ],
         ),

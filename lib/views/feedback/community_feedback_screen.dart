@@ -1,9 +1,12 @@
 // lib/views/feedback/community_feedback_screen.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '/models/route_model.dart';
 import '/models/route_feedback_model.dart';
 import '/controllers/route_feedback_controller.dart';
+import '/widgets/custom_button.dart';
+import '/widgets/custom_textfield.dart';
 
 class CommunityFeedbackScreen extends StatefulWidget {
   final RouteModel route;
@@ -24,10 +27,14 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
   bool _submitting = false;
   String? _status;
 
+  // Local rating state so header can update without leaving screen
+  late double _currentAverageRating;
+
   @override
   void initState() {
     super.initState();
     _feedbackFuture = _ctrl.fetchForRoute(widget.route.routeId);
+    _currentAverageRating = widget.route.averageRating;
   }
 
   @override
@@ -37,7 +44,11 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
   }
 
   Future<void> _refresh() async {
+    final newAvg = await _ctrl.averageForRoute(widget.route.routeId);
+    if (!mounted) return;
+
     setState(() {
+      _currentAverageRating = newAvg;
       _feedbackFuture = _ctrl.fetchForRoute(widget.route.routeId);
       _status = null;
     });
@@ -71,11 +82,16 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
       return;
     }
 
+    // After successful submit, refresh rating + comments
+    final newAvg = await _ctrl.averageForRoute(widget.route.routeId);
+    if (!mounted) return;
+
     _commentController.clear();
     setState(() {
       _submitting = false;
       _selectedRating = 5;
       _status = 'Thank you for your feedback!';
+      _currentAverageRating = newAvg;
       _feedbackFuture = _ctrl.fetchForRoute(widget.route.routeId);
     });
   }
@@ -145,7 +161,7 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  r.averageRating.toStringAsFixed(1),
+                                  _currentAverageRating.toStringAsFixed(1),
                                   style: const TextStyle(
                                     fontSize: 13,
                                     color: Colors.black87,
@@ -219,6 +235,9 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                       );
                     }
 
+                    final currentUserId =
+                        Supabase.instance.client.auth.currentUser?.id;
+
                     return ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -229,6 +248,9 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                         final name = f.userName?.trim().isNotEmpty == true
                             ? f.userName!
                             : 'Runner';
+
+                        final canDelete =
+                            currentUserId != null && f.userId == currentUserId;
 
                         return Card(
                           elevation: 2,
@@ -295,6 +317,77 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                                         color: Colors.black54,
                                       ),
                                     ),
+                                    if (canDelete) ...[
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                          color: Colors.redAccent,
+                                        ),
+                                        onPressed: () async {
+                                          final confirm = await showDialog<bool>(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: const Text(
+                                                'Delete comment?',
+                                              ),
+                                              content: const Text(
+                                                'Are you sure you want to delete this comment?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(
+                                                    ctx,
+                                                  ).pop(false),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () => Navigator.of(
+                                                    ctx,
+                                                  ).pop(true),
+                                                  child: const Text(
+                                                    'Delete',
+                                                    style: TextStyle(
+                                                      color: Colors.redAccent,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+
+                                          if (confirm != true) return;
+
+                                          final err = await _ctrl
+                                              .deleteFeedback(
+                                                f.id,
+                                                widget.route.routeId,
+                                              );
+
+                                          if (!mounted) return;
+
+                                          if (err != null) {
+                                            setState(() => _status = err);
+                                          } else {
+                                            final newAvg = await _ctrl
+                                                .averageForRoute(
+                                                  widget.route.routeId,
+                                                );
+                                            if (!mounted) return;
+
+                                            setState(() {
+                                              _status = 'Comment deleted.';
+                                              _currentAverageRating = newAvg;
+                                              _feedbackFuture = _ctrl
+                                                  .fetchForRoute(
+                                                    widget.route.routeId,
+                                                  );
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ],
                                   ],
                                 ),
                                 const SizedBox(height: 8),
@@ -342,19 +435,11 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                TextField(
+                // 🔹 Use CustomTextField instead of TextField
+                CustomTextField(
                   controller: _commentController,
-                  minLines: 3,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    hintText:
-                        'Share details about safety, lighting, traffic, etc.',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+                  hint: 'Share details about safety, lighting, traffic, etc.',
+                  maxLines: 4,
                 ),
                 const SizedBox(height: 12),
 
@@ -371,23 +456,12 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                   const SizedBox(height: 6),
                 ],
 
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _submitting ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: purple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    child: Text(
-                      _submitting ? 'Submitting...' : 'Submit Feedback',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
+                // 🔹 Use CustomButton instead of ElevatedButton
+                CustomButton(
+                  label: _submitting ? 'Submitting...' : 'Submit Feedback',
+                  loading: _submitting,
+                  color: purple,
+                  onPressed: _submitting ? null : _submit,
                 ),
               ],
             ),

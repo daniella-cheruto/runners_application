@@ -1,3 +1,6 @@
+// 🍃 Add this import for geocoding:
+import 'package:geocoding/geocoding.dart';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -20,6 +23,8 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
   final _controller = RoutesController();
   bool _saving = false;
 
+  final _searchController = TextEditingController();
+
   double startLat = -1.2921, startLng = 36.8219;
   double endLat = -1.2935, endLng = 36.8250;
   bool _selectingStart = true;
@@ -35,6 +40,7 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
     _cName.dispose();
     _cDesc.dispose();
     _cDist.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -52,12 +58,43 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
     setState(() {});
   }
 
+  Future<void> _searchPlace(String query) async {
+    try {
+      if (query.trim().isEmpty) return;
+
+      final locations = await locationFromAddress(query);
+      if (locations.isEmpty) return;
+
+      final loc = locations.first;
+      final lat = loc.latitude;
+      final lng = loc.longitude;
+
+      if (!mounted) return;
+
+      setState(() {
+        if (_selectingStart) {
+          startLat = lat;
+          startLng = lng;
+        } else {
+          endLat = lat;
+          endLng = lng;
+        }
+        _recomputeDistance();
+      });
+
+      // No animateCamera here – MapWidget will refit using fitToMarkers: true
+    } catch (e) {
+      debugPrint('Search failed: $e');
+    }
+  }
+
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     if (!_form.currentState!.validate()) return;
 
     final dist = int.tryParse(_cDist.text.trim()) ?? 0;
     if (dist <= 0) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Distance is invalid')));
@@ -77,6 +114,7 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
     setState(() => _saving = false);
 
     if (!mounted) return;
+
     if (ok) {
       ScaffoldMessenger.of(
         context,
@@ -89,7 +127,7 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
     }
   }
 
-  // 🔹 Draggable markers for Start & End
+  // MARKERS
   Set<Marker> _markers() => {
     Marker(
       markerId: const MarkerId('start'),
@@ -132,7 +170,6 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
         elevation: 0,
       ),
 
-      // 🌄 Main body scrolls, button stays fixed below
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -149,7 +186,6 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                 constraints: const BoxConstraints(maxWidth: 520),
                 child: Card(
                   elevation: 8,
-                  shadowColor: Colors.black26,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -160,6 +196,7 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // TITLE
                           Row(
                             children: [
                               Container(
@@ -185,10 +222,9 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                           ),
                           const SizedBox(height: 20),
 
-                          // 🧭 TextFields
                           CustomTextField(
                             controller: _cName,
-                            hint: 'Route name (e.g., Karura Forest Loop)',
+                            hint: 'Route name',
                             prefixIcon: const Icon(Icons.map_outlined),
                             validator: _required,
                           ),
@@ -210,11 +246,10 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                           ),
                           const SizedBox(height: 18),
 
-                          // 🏁 Start/End coordinates
+                          // START/END Chips
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Chip(
                                 avatar: const Icon(
@@ -225,7 +260,6 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                                 label: Text(
                                   'Start: ${startLat.toStringAsFixed(4)}, ${startLng.toStringAsFixed(4)}',
                                 ),
-                                backgroundColor: const Color(0xFFF5E9FF),
                               ),
                               Chip(
                                 avatar: const Icon(
@@ -236,13 +270,12 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                                 label: Text(
                                   'End: ${endLat.toStringAsFixed(4)}, ${endLng.toStringAsFixed(4)}',
                                 ),
-                                backgroundColor: const Color(0xFFF5E9FF),
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
 
-                          // 🟣 Selector pills
+                          // Start/End toggle
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.purple),
@@ -267,9 +300,46 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 14),
 
-                          // 🗺️ Map (tap + drag)
+                          // ⭐ SEARCH BAR (with search icon)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(color: Colors.purple),
+                              color: Colors.white,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.search, color: Colors.purple),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _searchController,
+                                    decoration: const InputDecoration(
+                                      hintText: "Search place...",
+                                      border: InputBorder.none,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.search,
+                                    color: Colors.purple,
+                                  ),
+                                  onPressed: () =>
+                                      _searchPlace(_searchController.text),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 18),
+
                           SizedBox(
                             height: 260,
                             child: ClipRRect(
@@ -280,7 +350,8 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                                   zoom: 14,
                                 ),
                                 markers: _markers(),
-                                fitToMarkers: false,
+                                fitToMarkers:
+                                    true, // 👈 let map auto-fit markers
                                 onTap: (pos) {
                                   setState(() {
                                     if (_selectingStart) {
@@ -296,14 +367,13 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 20),
 
                           Text(
-                            'Tip: tap the map or drag the markers to set Start/End. Distance updates automatically.',
+                            'Tip: search a place, then fine-tune by tapping the map or dragging the markers. Distance updates automatically.',
                             textAlign: TextAlign.center,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[700],
-                            ),
+                            style: theme.textTheme.bodySmall,
                           ),
                           const SizedBox(height: 40),
                         ],
@@ -317,7 +387,6 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
         ),
       ),
 
-      // ✅ Fixed "Save Route" button (always visible)
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16.0),
         child: CustomButton(
@@ -331,11 +400,11 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
   }
 }
 
-// Small toggle pill
 class _SelectorPill extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
   const _SelectorPill({
     required this.label,
     required this.selected,
@@ -348,7 +417,7 @@ class _SelectorPill extends StatelessWidget {
       borderRadius: BorderRadius.circular(30),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? Colors.purple : Colors.transparent,
           borderRadius: BorderRadius.circular(30),

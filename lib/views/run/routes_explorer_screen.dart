@@ -1,3 +1,4 @@
+// lib/views/run/routes_explorer_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -10,6 +11,7 @@ import '/widgets/map_widget.dart';
 import '/views/run/widgets/explorer_search_bar.dart';
 import '/views/run/widgets/explorer_filters.dart';
 import '/views/run/widgets/routes_list.dart';
+import '/utils/map_launcher.dart';
 
 class RoutesExplorerScreen extends StatefulWidget {
   const RoutesExplorerScreen({super.key});
@@ -180,20 +182,22 @@ class _RoutesExplorerScreenState extends State<RoutesExplorerScreen> {
 
               _fitTo(routes);
 
-              final markers = routes
-                  .map(
-                    (r) => Marker(
-                      markerId: MarkerId(r.routeId.toString()),
-                      position: _center(r),
-                      infoWindow: InfoWindow(
-                        title: r.name,
-                        snippet:
-                            "${(r.distanceM / 1000).toStringAsFixed(1)} km • ⭐ ${r.averageRating}",
-                      ),
-                      onTap: () => _zoom(r),
-                    ),
-                  )
-                  .toSet();
+              // 👇 Markers now open Google Maps when InfoWindow is tapped
+              final markers = routes.map((r) {
+                return Marker(
+                  markerId: MarkerId(r.routeId.toString()),
+                  position: _center(r),
+                  infoWindow: InfoWindow(
+                    title: r.name,
+                    snippet:
+                        "${(r.distanceM / 1000).toStringAsFixed(1)} km • ⭐ ${r.averageRating}",
+                    onTap: () {
+                      openGoogleMaps(r.startLatitude, r.startLongitude);
+                    },
+                  ),
+                  onTap: () => _zoom(r),
+                );
+              }).toSet();
 
               return Stack(
                 children: [
