@@ -546,10 +546,13 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   }
 
   String _formatDateTime(DateTime dt) {
+    //Ensure it's in UTC first, then add 3 hours for EAT
+    final eat = dt.toUtc().add(const Duration(hours: 3));
+
     final d =
-        '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+        '${eat.year}-${eat.month.toString().padLeft(2, '0')}-${eat.day.toString().padLeft(2, '0')}';
     final t =
-        '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+        '${eat.hour.toString().padLeft(2, '0')}:${eat.minute.toString().padLeft(2, '0')}';
     return '$d $t';
   }
 }
