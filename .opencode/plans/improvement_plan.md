@@ -545,6 +545,9 @@ class DistanceFormatter {
 | No image compression | Compress photos before upload |
 | No rate limiting | Debounce search requests (300ms) |
 | No pagination | Add `.limit()` and `.range()` to list queries |
+| Duplicate profile fetching | Consolidate `home_controller` + `profile_controller` into single source of truth |
+| No input length validation | Add max length on feedback comments and incident descriptions |
+| No tests | Add unit tests for controllers alongside repository refactor |
 
 ### Low Priority
 
@@ -645,6 +648,7 @@ These can be done in under an hour each:
 2. **Add pull-to-refresh** - 5 lines per list screen
 3. **Add loading indicators** - Create reusable widget
 4. **Debounce search** - Add timer cancel/restart
+5. **Move all config to `.env`** - Keep environment-specific values out of source code
 
 ---
 
@@ -654,6 +658,9 @@ These can be done in under an hour each:
 - Current architecture works fine for small teams
 - Refactor incrementally to reduce risk
 - Test GPS changes in real forest environment
+- `distanceFilter: 5` may be better than `10` for slow trail pace — test in the field
+- Add tests alongside the repository layer (interfaces make unit testing straightforward)
+- Consider consolidating duplicate controller logic when doing the architecture refactor
 
 ---
 
