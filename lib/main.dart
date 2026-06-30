@@ -54,19 +54,33 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
 
-    if (session != null) {
-      // User is logged in
-      return const HomeScreen();
-    } else {
-      // User is NOT logged in
-      return const LoginScreen();
-    }
+class _AuthWrapperState extends State<AuthWrapper> {
+  late final Stream<AuthState> _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStream = Supabase.instance.client.auth.onAuthStateChange;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: _authStream,
+      builder: (context, snapshot) {
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session != null) {
+          return const HomeScreen();
+        }
+        return const LoginScreen();
+      },
+    );
   }
 }
