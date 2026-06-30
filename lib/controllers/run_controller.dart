@@ -39,6 +39,8 @@ class RunController extends ChangeNotifier {
   Position? _lastPosition;
   DateTime? _startedAt;
   int _positionCount = 0;
+  DateTime? _lastPositionTime;
+  Timer? _watchdogTimer;
 
   final _supabase = Supabase.instance.client;
 
@@ -48,6 +50,7 @@ class RunController extends ChangeNotifier {
   void dispose() {
     _timer?.cancel();
     _posSub?.cancel();
+    _watchdogTimer?.cancel();
     super.dispose();
   }
 
@@ -136,7 +139,38 @@ class RunController extends ChangeNotifier {
       }
 
       _lastPosition = pos;
+      _lastPositionTime = DateTime.now();
     });
+  }
+
+  void _startWatchdog() {
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!_running) return;
+
+      final silentFor = _lastPositionTime != null
+          ? DateTime.now().difference(_lastPositionTime!).inSeconds
+          : 0;
+
+      if (silentFor > 60) {
+        debugPrint('GPS silent for ${silentFor}s — forcing fresh position');
+        _forceFreshPosition();
+      }
+    });
+  }
+
+  Future<void> _forceFreshPosition() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+      ).timeout(const Duration(seconds: 10));
+
+      if (pos.accuracy <= 50) {
+        _lastPositionTime = DateTime.now();
+      }
+    } catch (e) {
+      debugPrint('Failed to get fresh position: $e');
+    }
   }
 
   Future<void> _stopPositionStream() async {
@@ -192,6 +226,7 @@ class RunController extends ChangeNotifier {
 
     _startTimer();
     _startPositionStream();
+    _startWatchdog();
 
     return null;
   }
@@ -212,6 +247,7 @@ class RunController extends ChangeNotifier {
 
     _startTimer();
     _startPositionStream();
+    _startWatchdog();
 
     return null;
   }
@@ -227,6 +263,8 @@ class RunController extends ChangeNotifier {
 
     _timer?.cancel();
     _timer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
 
     await _stopPositionStream();
 
@@ -245,6 +283,8 @@ class RunController extends ChangeNotifier {
 
     _timer?.cancel();
     _timer = null;
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
 
     await _stopPositionStream();
 
