@@ -38,6 +38,7 @@ class RunController extends ChangeNotifier {
   StreamSubscription<Position>? _posSub;
   Position? _lastPosition;
   DateTime? _startedAt;
+  int _positionCount = 0;
 
   final _supabase = Supabase.instance.client;
 
@@ -97,38 +98,45 @@ class RunController extends ChangeNotifier {
 
   void _startPositionStream() {
     _posSub?.cancel();
-    _posSub =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.best,
-            distanceFilter: 1, // more frequent updates
-          ),
-        ).listen((pos) {
-          if (!_running) return;
+    _posSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+      ),
+    ).listen((pos) {
+      if (!_running) return;
 
-          // 🔹 Ignore very inaccurate GPS points
-          if (pos.accuracy > 25) return;
+      // Discard first 3 fixes — GPS needs time to lock on accurately
+      if (_positionCount < 3) {
+        _positionCount++;
+        return;
+      }
 
-          if (_lastPosition != null) {
-            final delta = Geolocator.distanceBetween(
-              _lastPosition!.latitude,
-              _lastPosition!.longitude,
-              pos.latitude,
-              pos.longitude,
-            );
+      // Skip poor accuracy points (relaxed for forest environments)
+      if (pos.accuracy > 50) return;
 
-            // 🔹 Ignore tiny jitter (< 3m), count real movement
-            if (delta >= 3) {
-              _distanceMeters += delta;
-              _positions.add(pos);
-              notifyListeners();
-            }
-          } else {
-            _positions.add(pos);
-          }
+      // Skip GPS jumps — no runner moves faster than 54 km/h
+      if (_lastPosition != null && pos.speed > 15) return;
 
-          _lastPosition = pos;
-        });
+      if (_lastPosition != null) {
+        final delta = Geolocator.distanceBetween(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+          pos.latitude,
+          pos.longitude,
+        );
+
+        if (delta >= 3) {
+          _distanceMeters += delta;
+          _positions.add(pos);
+          notifyListeners();
+        }
+      } else {
+        _positions.add(pos);
+      }
+
+      _lastPosition = pos;
+    });
   }
 
   Future<void> _stopPositionStream() async {
@@ -178,6 +186,7 @@ class RunController extends ChangeNotifier {
     _positions.clear();
     _lastPosition = null;
     _startedAt = now;
+    _positionCount = 0;
 
     _setStatus('Tracking started. Enjoy your run 🏃‍♀️', 0xFF4CAF50);
 
