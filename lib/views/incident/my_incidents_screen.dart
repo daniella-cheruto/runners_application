@@ -5,6 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '/controllers/incident_report_controller.dart';
 import '/views/incident/fullscreen_image_screen.dart';
+import '/widgets/loading_widget.dart';
+import '/widgets/error_widget.dart';
 
 class MyIncidentsScreen extends StatefulWidget {
   final int routeId; // now required
@@ -134,23 +136,10 @@ class _MyIncidentsScreenState extends State<MyIncidentsScreen> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const LoadingWidget();
             }
             if (snapshot.hasError) {
-              return ListView(
-                children: [
-                  const SizedBox(height: 80),
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        'Error loading incidents:\n${snapshot.error}',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                ],
-              );
+              return AppErrorWidget(onRetry: _refresh);
             }
 
             final incidents = snapshot.data ?? [];

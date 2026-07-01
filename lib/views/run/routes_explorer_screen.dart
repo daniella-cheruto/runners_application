@@ -12,6 +12,8 @@ import '/views/run/widgets/explorer_search_bar.dart';
 import '/views/run/widgets/explorer_filters.dart';
 import '/views/run/widgets/routes_list.dart';
 import '/utils/map_launcher.dart';
+import '/widgets/loading_widget.dart';
+import '/widgets/error_widget.dart';
 
 class RoutesExplorerScreen extends StatefulWidget {
   const RoutesExplorerScreen({super.key});
@@ -167,11 +169,11 @@ class _RoutesExplorerScreenState extends State<RoutesExplorerScreen> {
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting &&
                   !_isLoading) {
-                return const Center(child: CircularProgressIndicator());
+                return const LoadingWidget();
               }
 
               if (snap.hasError) {
-                return Center(child: Text("Error: ${snap.error}"));
+                return AppErrorWidget(onRetry: _reloadAll);
               }
 
               final routes = snap.data ?? [];
