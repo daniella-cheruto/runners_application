@@ -1,4 +1,5 @@
 // lib/views/home/route_detail_screen.dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -164,10 +165,11 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
           children: [
             Center(
               child: InteractiveViewer(
-                child: Image.network(
-                  url,
+                child: CachedNetworkImage(
+                  imageUrl: url,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) =>
+                  placeholder: (context, url) => const CircularProgressIndicator(color: Colors.white),
+                  errorWidget: (context, url, error) =>
                       const Icon(Icons.broken_image, color: Colors.white),
                 ),
               ),

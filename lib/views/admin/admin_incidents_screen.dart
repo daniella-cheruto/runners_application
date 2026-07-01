@@ -1,4 +1,5 @@
 // lib/views/admin/admin_incidents_screen.dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -364,11 +365,13 @@ class _AdminIncidentsScreenState extends State<AdminIncidentsScreen> {
                                 },
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    url,
+                                  child: CachedNetworkImage(
+                                    imageUrl: url,
                                     width: 70,
                                     height: 70,
                                     fit: BoxFit.cover,
+                                    placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                    errorWidget: (context, url, error) => const Icon(Icons.broken_image),
                                   ),
                                 ),
                               ),

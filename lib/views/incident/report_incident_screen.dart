@@ -1,4 +1,5 @@
 // lib/views/incident/report_incident_screen.dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -401,11 +402,13 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
                                     },
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(10),
-                                      child: Image.network(
-                                        _photoUrls[i],
+                                      child: CachedNetworkImage(
+                                        imageUrl: _photoUrls[i],
                                         width: 80,
                                         height: 80,
                                         fit: BoxFit.cover,
+                                        placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                        errorWidget: (context, url, error) => const Icon(Icons.broken_image),
                                       ),
                                     ),
                                   ),
