@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '/models/route_model.dart';
 import 'report_incident_screen.dart';
+import '/widgets/loading_widget.dart';
+import '/widgets/error_widget.dart';
 
 class IncidentRoutesScreen extends StatefulWidget {
   const IncidentRoutesScreen({super.key});
@@ -33,6 +35,13 @@ class _IncidentRoutesScreenState extends State<IncidentRoutesScreen> {
     return list;
   }
 
+  Future<void> _refresh() async {
+    setState(() {
+      _routesFuture = _fetchRoutes();
+    });
+    
+  }
+
   @override
   Widget build(BuildContext context) {
     const purple = Color(0xFF9C27B0);
@@ -46,12 +55,10 @@ class _IncidentRoutesScreenState extends State<IncidentRoutesScreen> {
         future: _routesFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const LoadingWidget();
           }
           if (snapshot.hasError) {
-            return Center(
-              child: Text('Failed to load routes: ${snapshot.error}'),
-            );
+            return AppErrorWidget(onRetry: _refresh);
           }
 
           final routes = snapshot.data ?? [];
@@ -61,7 +68,9 @@ class _IncidentRoutesScreenState extends State<IncidentRoutesScreen> {
             );
           }
 
-          return ListView.separated(
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView.separated(
             itemCount: routes.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
@@ -88,6 +97,7 @@ class _IncidentRoutesScreenState extends State<IncidentRoutesScreen> {
                 },
               );
             },
+            ),
           );
         },
       ),

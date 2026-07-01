@@ -7,6 +7,8 @@ import '/models/route_feedback_model.dart';
 import '/controllers/route_feedback_controller.dart';
 import '/widgets/custom_button.dart';
 import '/widgets/custom_textfield.dart';
+import '/widgets/loading_widget.dart';
+import '/widgets/error_widget.dart';
 
 class CommunityFeedbackScreen extends StatefulWidget {
   final RouteModel route;
@@ -208,20 +210,11 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                   future: _feedbackFuture,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(child: CircularProgressIndicator()),
-                      );
+                      return const LoadingWidget();
                     }
 
                     if (snapshot.hasError) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Text(
-                          'Failed to load feedback: ${snapshot.error}',
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      );
+                      return AppErrorWidget(onRetry: _refresh);
                     }
 
                     final feedbackList = snapshot.data ?? [];
