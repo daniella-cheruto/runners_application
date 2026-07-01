@@ -1,6 +1,7 @@
 // lib/views/profile/profile_screen.dart
 
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '/controllers/profile_controller.dart';
@@ -183,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundImage: _profileImage != null
                       ? FileImage(_profileImage!)
                       : (_profileImageUrl != null
-                            ? NetworkImage(_profileImageUrl!)
+                            ? CachedNetworkImageProvider(_profileImageUrl!)
                             : null),
                   backgroundColor: purple.withValues(alpha: 0.30),
                   child: _profileImage == null && _profileImageUrl == null

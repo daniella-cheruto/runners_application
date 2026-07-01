@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class FullscreenImageScreen extends StatelessWidget {
@@ -17,7 +18,11 @@ class FullscreenImageScreen extends StatelessWidget {
       body: Center(
         child: InteractiveViewer(
           clipBehavior: Clip.none,
-          child: Image.network(imageUrl),
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
+            placeholder: (context, url) => const CircularProgressIndicator(color: Colors.white),
+            errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.white, size: 48),
+          ),
         ),
       ),
     );

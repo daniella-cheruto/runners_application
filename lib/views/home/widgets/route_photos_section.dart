@@ -1,4 +1,5 @@
 // lib/views/home/widgets/route_photos_section.dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '/models/route_photo_model.dart';
 import '/controllers/route_photos_controller.dart';
@@ -118,12 +119,13 @@ class _PhotoThumb extends StatelessWidget {
     return _PhotoThumb._(
       ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.network(
-          url,
+        child: CachedNetworkImage(
+          imageUrl: url,
           width: 86,
           height: 86,
           fit: BoxFit.cover,
-          errorBuilder: (context, __, ___) =>
+          placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          errorWidget: (context, url, error) =>
               _gradientBox(const [Color(0xFFD1C4E9), Color(0xFFB39DDB)]),
         ),
       ),
