@@ -30,6 +30,37 @@ Answer these questions before writing or suggesting code:
 - Is there a user flow that should be integration tested?
 - Has this been manually tested on a real device (especially GPS changes)?
 
+## Creating a New Supabase Table
+
+Since Oct 30, 2026, Supabase no longer grants default Data API access to new tables in `public` — a table with no explicit `GRANT` is invisible to `supabase-js`/PostgREST/GraphQL even with RLS off. There's no `supabase/migrations` folder in this repo, so tables are created directly in the dashboard SQL editor — run this template every time, before shipping any feature that relies on the new table:
+
+```sql
+-- Grant access per role
+grant select
+  on public.your_table
+  to anon;
+
+grant select, insert, update, delete
+  on public.your_table
+  to authenticated;
+
+grant select, insert, update, delete
+  on public.your_table
+  to service_role;
+
+-- Enable RLS
+alter table public.your_table
+  enable row level security;
+
+-- Add policies
+create policy "users can read their own rows"
+  on public.your_table
+  for select to authenticated
+  using (auth.uid() = user_id);
+```
+
+Adjust role grants and policies to the table's actual access pattern (e.g. admin-only tables shouldn't grant `anon`). If PostgREST returns a `42501` error, it names the missing grant directly.
+
 ## Git Workflow
 - Work on `dev` branch, PR into `main`
 - After merging to main: `git pull origin main` → `git push backup main` → `git checkout dev`
