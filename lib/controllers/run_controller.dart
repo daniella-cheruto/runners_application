@@ -38,6 +38,7 @@ class RunController extends ChangeNotifier {
   StreamSubscription<Position>? _posSub;
   Position? _lastPosition;
   DateTime? _startedAt;
+  DateTime? _endedAt;
   int _positionCount = 0;
   DateTime? _lastPositionTime;
   Timer? _watchdogTimer;
@@ -272,9 +273,12 @@ class RunController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Stop run and save summary + GPS points to Supabase.
-  Future<void> stop({required int routeId}) async {
-    if (!_hasStartedOnce) return;
+  /// Stop run: finalise tracking locally, then attempt to save to Supabase.
+  /// Returns true if the save succeeded, false otherwise (e.g. logged out,
+  /// no network). On failure, call [retrySave] to try again without
+  /// re-finalising tracking or losing the recorded distance/time/points.
+  Future<bool> stop({required int routeId}) async {
+    if (!_hasStartedOnce) return false;
 
     // finalise elapsed one last time
     _finaliseElapsedNow();
@@ -288,8 +292,7 @@ class RunController extends ChangeNotifier {
 
     await _stopPositionStream();
 
-    final endedAt = DateTime.now();
-    final startedAt = _startedAt ?? endedAt;
+    _endedAt = DateTime.now();
     final km = _distanceMeters / 1000.0;
 
     _setStatus(
@@ -297,11 +300,25 @@ class RunController extends ChangeNotifier {
       0xFF9C27B0,
     );
 
+    return retrySave(routeId);
+  }
+
+  /// Attempt (or retry) saving the finalised run to Supabase. Safe to call
+  /// again after a failure — reuses the original end time rather than the
+  /// moment the retry happened, so `ended_at` stays accurate.
+  Future<bool> retrySave(int routeId) async {
+    final endedAt = _endedAt ?? DateTime.now();
+    final startedAt = _startedAt ?? endedAt;
+    final km = _distanceMeters / 1000.0;
+
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
-        _setStatus('Run saved locally (not logged in).', 0xFFFF9800);
-        return;
+        _setStatus(
+          "Not saved — you're logged out. Log in and retry.",
+          0xFFF44336,
+        );
+        return false;
       }
 
       // 1) Insert into runs and get new run_id
@@ -344,12 +361,16 @@ class RunController extends ChangeNotifier {
         'Run saved, Distance: ${km.toStringAsFixed(2)} km in $formattedTime.',
         0xFF4CAF50,
       );
+      return true;
     } catch (e) {
-      // don’t crash UI if offline / RLS issue
-      _setStatus('Run ended, but failed to save online. ($e)', 0xFFF44336);
+      // Don't leak raw exception details to the user; log for debugging.
+      debugPrint('retrySave error: $e');
+      _setStatus(
+        "Not saved — couldn't reach the server. Check your connection and retry.",
+        0xFFF44336,
+      );
+      return false;
     }
-
-    notifyListeners();
   }
 
   // ---- formatting helpers ----

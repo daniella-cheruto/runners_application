@@ -74,7 +74,81 @@ class _GpsRunScreenState extends State<GpsRunScreen> {
     final routeId = route.routeId;
     final navigator = Navigator.of(context);
 
-    await _run.stop(routeId: routeId);
+    var saved = await _run.stop(routeId: routeId);
+
+    if (!saved) {
+      if (!mounted) return;
+
+      // The dialog manages its own retry loop internally (via
+      // StatefulBuilder) so it only ever closes once — either the save
+      // actually succeeds, or the user explicitly chooses to continue
+      // without saving. No flicker of separate dialogs opening/closing.
+      saved =
+          await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) {
+              var retrying = false;
+
+              return StatefulBuilder(
+                builder: (context, setDialogState) => AlertDialog(
+                  title: const Text('Run not saved'),
+                  content: retrying
+                      ? const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text('Retrying…'),
+                          ],
+                        )
+                      : Text(
+                          _run.statusMessage ??
+                              "Your run couldn't be saved online. You can retry or continue without saving.",
+                        ),
+                  actions: retrying
+                      ? const []
+                      : [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(false),
+                            child: const Text('Continue without saving'),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              setDialogState(() => retrying = true);
+                              // Minimum delay so the spinner is always
+                              // visible, even when the failure is near-
+                              // instant (e.g. no network interface at all).
+                              final results = await Future.wait([
+                                _run.retrySave(routeId),
+                                Future.delayed(
+                                  const Duration(milliseconds: 500),
+                                ),
+                              ]);
+                              final resaved = results[0] as bool;
+                              if (!dialogContext.mounted) return;
+                              if (resaved) {
+                                Navigator.of(dialogContext).pop(true);
+                              } else {
+                                setDialogState(() => retrying = false);
+                              }
+                            },
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                ),
+              );
+            },
+          ) ??
+          false;
+    }
 
     if (!mounted) return;
 
@@ -100,8 +174,13 @@ class _GpsRunScreenState extends State<GpsRunScreen> {
 
     navigator.push(
       MaterialPageRoute(
-        builder: (_) =>
-            RunSummaryScreen(route: route, run: summary, path: path),
+        builder: (_) => RunSummaryScreen(
+          route: route,
+          run: summary,
+          path: path,
+          saved: saved,
+          onRetrySave: saved ? null : () => _run.retrySave(routeId),
+        ),
       ),
     );
   }

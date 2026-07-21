@@ -4,7 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '/models/run_model.dart';
 import '/models/route_model.dart';
 
-class RunSummaryScreen extends StatelessWidget {
+class RunSummaryScreen extends StatefulWidget {
   final RouteModel? route;
   final RunModel run;
 
@@ -12,11 +12,57 @@ class RunSummaryScreen extends StatelessWidget {
   /// If provided and has at least 2 points, a small map preview is shown.
   final List<LatLng>? path;
 
-  const RunSummaryScreen({super.key, this.route, required this.run, this.path});
+  /// Whether the run was actually saved to the backend.
+  final bool saved;
+
+  /// Called to retry saving, if [saved] is false. Returns true on success.
+  final Future<bool> Function()? onRetrySave;
+
+  const RunSummaryScreen({
+    super.key,
+    this.route,
+    required this.run,
+    this.path,
+    this.saved = true,
+    this.onRetrySave,
+  });
+
+  @override
+  State<RunSummaryScreen> createState() => _RunSummaryScreenState();
+}
+
+class _RunSummaryScreenState extends State<RunSummaryScreen> {
+  late bool _saved;
+  bool _retrying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _saved = widget.saved;
+  }
+
+  Future<void> _retry() async {
+    if (widget.onRetrySave == null || _retrying) return;
+
+    setState(() => _retrying = true);
+    // Minimum delay so the spinner is always visible, even when the
+    // failure is near-instant (e.g. no network interface at all).
+    final results = await Future.wait([
+      widget.onRetrySave!(),
+      Future.delayed(const Duration(milliseconds: 500)),
+    ]);
+    final result = results[0] as bool;
+    if (!mounted) return;
+
+    setState(() {
+      _saved = result;
+      _retrying = false;
+    });
+  }
 
   // 🔹 Format duration as HH:MM:SS (or MM:SS if < 1 hour)
   String get _timeText {
-    final d = run.duration;
+    final d = widget.run.duration;
 
     String twoDigits(int n) => n.toString().padLeft(2, '0');
 
@@ -35,14 +81,14 @@ class RunSummaryScreen extends StatelessWidget {
 
   String get _paceText {
     // Same UX guard as RunController.formattedPace
-    if (run.distanceM < 100 || run.duration.inSeconds < 30) {
+    if (widget.run.distanceM < 100 || widget.run.duration.inSeconds < 30) {
       return '--';
     }
 
-    final km = run.distanceM / 1000.0;
+    final km = widget.run.distanceM / 1000.0;
     if (km <= 0) return '--';
 
-    final totalSecPerKm = run.duration.inSeconds / km;
+    final totalSecPerKm = widget.run.duration.inSeconds / km;
     final min = totalSecPerKm ~/ 60;
     final sec = (totalSecPerKm % 60).round();
 
@@ -52,17 +98,70 @@ class RunSummaryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final purple = const Color(0xFF9C27B0);
+    final route = widget.route;
+    final run = widget.run;
+    final path = widget.path;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Run Summary'), backgroundColor: purple),
-      body: Padding(
+      appBar: AppBar(
+        title: const Text('Run Summary'),
+        backgroundColor: purple,
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (!_saved) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.red.withValues(alpha: 0.4),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 18,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        "This run wasn't saved online.",
+                        style: TextStyle(fontSize: 13, color: Colors.red),
+                      ),
+                    ),
+                    if (widget.onRetrySave != null)
+                      TextButton(
+                        onPressed: _retrying ? null : _retry,
+                        child: _retrying
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Retry'),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             if (route != null) ...[
               Text(
-                route!.name,
+                route.name,
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
@@ -77,7 +176,7 @@ class RunSummaryScreen extends StatelessWidget {
             ],
 
             // Mini map preview of the route (if path is provided)
-            if (path != null && path!.length >= 2) _buildRouteMap(path!),
+            if (path != null && path.length >= 2) _buildRouteMap(path),
 
             const SizedBox(height: 16),
 
@@ -137,11 +236,11 @@ class RunSummaryScreen extends StatelessWidget {
               style: TextStyle(fontSize: 14, color: Colors.black54),
             ),
 
-            const Spacer(),
+            const SizedBox(height: 32),
 
             ElevatedButton(
               onPressed: () =>
-                  Navigator.popUntil(context, (route) => route.isFirst),
+                  Navigator.popUntil(context, (r) => r.isFirst),
               style: ElevatedButton.styleFrom(
                 backgroundColor: purple,
                 foregroundColor: Colors.white,
@@ -192,7 +291,11 @@ class RunSummaryScreen extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
