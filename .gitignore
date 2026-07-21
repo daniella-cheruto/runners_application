@@ -36,6 +36,9 @@ migrate_working_dir/
 # Environment files
 .env
 
+# Local working notes (not for public repo)
+SECURITY_TODO.md
+
 # Symbolication related
 app.*.symbols
 
