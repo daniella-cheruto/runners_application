@@ -58,7 +58,6 @@ class RouteFeedbackController {
       return 'You must be logged in to leave feedback.';
     }
 
-    // 1) Insert feedback – this is what the user actually cares about.
     try {
       await _client.from('route_feedback').insert({
         'route_id': routeId,
@@ -72,26 +71,19 @@ class RouteFeedbackController {
       return 'Failed to submit feedback. Please try again.';
     }
 
-    // 2) Recompute aggregate stats in routes (best-effort; errors are logged only)
-    try {
-      await _recomputeRouteStats(routeId);
-    } catch (e, st) {
-      debugPrint('recomputeRouteStats error (ignored for UI): $e');
-      debugPrint('$st');
-    }
-
+    // average_rating/popularity on routes are recomputed automatically by
+    // a database trigger on route_feedback — no client-side update needed.
     return null; // success
   }
 
-  /// Delete feedback (only if owned by the current user), then recompute stats.
+  /// Delete feedback (only if owned by the current user).
   /// Returns null on success, or an error message on failure.
-  Future<String?> deleteFeedback(int feedbackId, int routeId) async {
+  Future<String?> deleteFeedback(int feedbackId) async {
     final user = _client.auth.currentUser;
     if (user == null) {
       return 'You must be logged in.';
     }
 
-    // 1) Delete only this user's feedback row
     try {
       await _client
           .from('route_feedback')
@@ -104,46 +96,8 @@ class RouteFeedbackController {
       return 'Failed to delete feedback.';
     }
 
-    // 2) Best-effort recompute stats after delete
-    try {
-      await _recomputeRouteStats(routeId);
-    } catch (e, st) {
-      debugPrint('recomputeRouteStats after delete error (ignored): $e');
-      debugPrint('$st');
-    }
-
+    // average_rating/popularity on routes are recomputed automatically by
+    // a database trigger on route_feedback — no client-side update needed.
     return null;
-  }
-
-  /// INTERNAL: recompute average_rating & popularity in routes from route_feedback.
-  Future<void> _recomputeRouteStats(int routeId) async {
-    // Get all ratings for this route
-    final rows =
-        await _client
-                .from('route_feedback')
-                .select('rating')
-                .eq('route_id', routeId)
-            as List<dynamic>;
-
-    if (rows.isEmpty) {
-      // No feedback → reset stats
-      await _client
-          .from('routes')
-          .update({'average_rating': 0, 'popularity': 0})
-          .eq('route_id', routeId); // your PK here
-      return;
-    }
-
-    double sum = 0;
-    for (final r in rows) {
-      sum += (r['rating'] as num).toDouble();
-    }
-    final count = rows.length;
-    final avg = sum / count;
-
-    await _client
-        .from('routes')
-        .update({'average_rating': avg, 'popularity': count})
-        .eq('route_id', routeId);
   }
 }

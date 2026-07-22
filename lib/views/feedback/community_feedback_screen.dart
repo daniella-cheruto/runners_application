@@ -353,10 +353,7 @@ class _CommunityFeedbackScreenState extends State<CommunityFeedbackScreen> {
                                           if (confirm != true) return;
 
                                           final err = await _ctrl
-                                              .deleteFeedback(
-                                                f.id,
-                                                widget.route.routeId,
-                                              );
+                                              .deleteFeedback(f.id);
 
                                           if (!mounted) return;
 
