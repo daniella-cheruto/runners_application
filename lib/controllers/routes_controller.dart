@@ -29,7 +29,7 @@ class RoutesController {
         query = query.gte('popularity', minPopularity);
       }
 
-      final resp = await query;
+      final resp = await query.order('name', ascending: true);
       final list = resp as List<dynamic>;
 
       debugPrint('fetchRoutes returned ${list.length} rows');
@@ -67,6 +67,71 @@ class RoutesController {
     }
   }
 
+  /// Normal: check whether a route has any community data attached
+  /// (feedback, photos, or incident reports) from anyone. Deleting a route
+  /// cascades to delete route_feedback, route_photos, and incident_report
+  /// (all ON DELETE CASCADE) — so this guards against a route's creator
+  /// silently destroying other users' contributions. Fails closed (returns
+  /// true) on error, since blocking a delete is safer than risking one
+  /// that destroys data we couldn't verify.
+  Future<bool> routeHasCommunityData(int routeId) async {
+    try {
+      final results = await Future.wait([
+        _client
+            .from('route_feedback')
+            .select('id')
+            .eq('route_id', routeId)
+            .limit(1),
+        _client
+            .from('route_photos')
+            .select('id')
+            .eq('route_id', routeId)
+            .limit(1),
+        _client
+            .from('incident_report')
+            .select('incident_id')
+            .eq('route_id', routeId)
+            .limit(1),
+      ]);
+
+      return results.any((r) => (r as List).isNotEmpty);
+    } catch (e, st) {
+      debugPrint('routeHasCommunityData error: $e');
+      debugPrint('$st');
+      return true;
+    }
+  }
+
+  /// Normal: delete a route the current user owns, but only if it has no
+  /// community data attached (see routeHasCommunityData). Relies on RLS
+  /// ("Allow users to delete their own routes") to enforce ownership.
+  /// Returns null on success, or an error message on failure.
+  Future<String?> deleteRoute(int routeId) async {
+    final hasData = await routeHasCommunityData(routeId);
+    if (hasData) {
+      return "This route has feedback, photos, or incident reports from "
+          "the community and can't be deleted.";
+    }
+
+    try {
+      final deleted = await _client
+          .from('routes')
+          .delete()
+          .eq('route_id', routeId)
+          .select('route_id');
+
+      final list = deleted as List<dynamic>;
+      if (list.isEmpty) {
+        return "Couldn't delete this route.";
+      }
+      return null;
+    } catch (e, st) {
+      debugPrint('deleteRoute error: $e');
+      debugPrint('$st');
+      return 'Failed to delete route.';
+    }
+  }
+
   /// Normal: search routes by name/description
   Future<List<RouteModel>> searchRoutes(String term) async {
     final t = term.trim();
@@ -79,7 +144,8 @@ class RoutesController {
       final resp = await _client
           .from('routes')
           .select()
-          .or('name.ilike.%$t%,description.ilike.%$t%');
+          .or('name.ilike.%$t%,description.ilike.%$t%')
+          .order('name', ascending: true);
 
       final list = resp as List<dynamic>;
       debugPrint('searchRoutes returned ${list.length} rows');
