@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '/controllers/routes_controller.dart';
 import '/models/route_model.dart';
@@ -126,6 +127,65 @@ class _RoutesExplorerScreenState extends State<RoutesExplorerScreen> {
   }
 
   Future<void> _reloadAll() => _load(_controller.fetchRoutes());
+
+  Future<void> _handleDelete(RouteModel route) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete route?'),
+        content: Text('Delete "${route.name}"? This can\'t be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    final error = await _controller.deleteRoute(route.routeId);
+    if (!mounted) return;
+
+    if (error == null) {
+      await _reloadAll();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Route deleted'),
+          content: const Text('The route has been removed.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text("Can't delete this route"),
+          content: Text(error),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
 
   void _applyFilters() {
     final t = _searchController.text.trim();
@@ -308,6 +368,13 @@ class _RoutesExplorerScreenState extends State<RoutesExplorerScreen> {
                                 // Routes list
                                 RoutesList(
                                   routes: routes,
+                                  currentUserId: Supabase
+                                      .instance
+                                      .client
+                                      .auth
+                                      .currentUser
+                                      ?.id,
+                                  onDelete: _handleDelete,
                                   onTap: (r) {
                                     Navigator.push(
                                       context,
