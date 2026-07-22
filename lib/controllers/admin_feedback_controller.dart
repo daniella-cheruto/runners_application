@@ -27,43 +27,11 @@ class AdminFeedbackController {
     }
   }
 
-  /// ADMIN: delete feedback and recalc route average
-  Future<String?> adminDeleteFeedback({
-    required int feedbackId,
-    required int routeId,
-  }) async {
+  /// ADMIN: delete feedback. average_rating/popularity on routes are
+  /// recomputed automatically by a database trigger on route_feedback.
+  Future<String?> adminDeleteFeedback({required int feedbackId}) async {
     try {
-      // 1) delete the feedback row
       await _client.from('route_feedback').delete().eq('id', feedbackId);
-
-      // 2) recalc average rating for that route
-      final ratingsResp = await _client
-          .from('route_feedback')
-          .select('rating')
-          .eq('route_id', routeId);
-
-      final ratingsList = ratingsResp as List<dynamic>;
-
-      double newAvg = 0;
-      int newCount = ratingsList.length;
-
-      if (newCount > 0) {
-        int sum = 0;
-        for (final row in ratingsList) {
-          sum += (row['rating'] as num).toInt();
-        }
-        newAvg = sum / newCount;
-      }
-
-      // 3) update routes table
-      await _client
-          .from('routes')
-          .update({
-            'average_rating': newAvg,
-            'popularity': newCount, // optional if you use this as count
-          })
-          .eq('route_id', routeId);
-
       return null;
     } catch (e, st) {
       debugPrint('adminDeleteFeedback error: $e');

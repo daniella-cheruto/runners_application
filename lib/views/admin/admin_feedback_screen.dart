@@ -109,11 +109,7 @@ class _AdminFeedbackScreenState extends State<AdminFeedbackScreen> {
 
     if (confirmed != true) return;
 
-    //  pass both required named params
-    final err = await _ctrl.adminDeleteFeedback(
-      feedbackId: fb.id,
-      routeId: fb.routeId,
-    );
+    final err = await _ctrl.adminDeleteFeedback(feedbackId: fb.id);
 
     if (!mounted) return;
 
