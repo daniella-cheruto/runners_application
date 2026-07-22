@@ -45,6 +45,28 @@ class RoutesController {
     }
   }
 
+  /// Normal: look up a route by exact (case-insensitive) name match.
+  /// Used to warn users before creating a likely duplicate. Returns the
+  /// first match, or null if none exists. Fails open (returns null) on
+  /// error so a broken check never blocks route creation.
+  Future<RouteModel?> findRouteByName(String name) async {
+    try {
+      final resp = await _client
+          .from('routes')
+          .select()
+          .ilike('name', name.trim())
+          .limit(1)
+          .maybeSingle();
+
+      if (resp == null) return null;
+      return RouteModel.fromJson(resp);
+    } catch (e, st) {
+      debugPrint('findRouteByName error: $e');
+      debugPrint('$st');
+      return null;
+    }
+  }
+
   /// Normal: search routes by name/description
   Future<List<RouteModel>> searchRoutes(String term) async {
     final t = term.trim();

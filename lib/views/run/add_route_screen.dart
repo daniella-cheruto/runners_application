@@ -8,6 +8,7 @@ import '/controllers/routes_controller.dart';
 import '/widgets/custom_button.dart';
 import '/widgets/custom_textfield.dart';
 import '/widgets/map_widget.dart';
+import '/views/home/route_detail_screen.dart';
 
 class AddRouteScreen extends StatefulWidget {
   const AddRouteScreen({super.key});
@@ -101,9 +102,54 @@ class _AddRouteScreenState extends State<AddRouteScreen> {
       return;
     }
 
+    final name = _cName.text.trim();
+
     setState(() => _saving = true);
+
+    final existing = await _controller.findRouteByName(name);
+    if (existing != null) {
+      setState(() => _saving = false);
+      if (!mounted) return;
+
+      final useExisting = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('This route may already exist'),
+          content: Text(
+            '"${existing.name}" — ${existing.distanceKm.toStringAsFixed(2)} km, '
+            '⭐ ${existing.averageRating.toStringAsFixed(1)}\n\n'
+            "If this is the same trail, use the existing route so everyone's "
+            'ratings and feedback stay together in one place.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Add anyway'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Use this route'),
+            ),
+          ],
+        ),
+      );
+
+      if (useExisting == true) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => RouteDetailScreen(route: existing),
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() => _saving = true);
+    }
+
     final ok = await _controller.addRoute(
-      name: _cName.text.trim(),
+      name: name,
       description: _cDesc.text.trim(),
       distanceM: dist,
       startLat: startLat,
