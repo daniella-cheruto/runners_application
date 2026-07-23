@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '/models/route_feedback_model.dart';
+import '/controllers/profile_lookup.dart';
 
 class RouteFeedbackController {
   final SupabaseClient _client = Supabase.instance.client;
@@ -11,16 +12,19 @@ class RouteFeedbackController {
     try {
       final data = await _client
           .from('route_feedback')
-          .select(
-            'id, route_id, user_id, rating, comment, created_at, profiles(full_name)',
-          )
+          .select('id, route_id, user_id, rating, comment, created_at')
           .eq('route_id', routeId)
           .order('created_at', ascending: false);
 
       final list = data as List<dynamic>;
-      return list
-          .map((row) => RouteFeedback.fromJson(row as Map<String, dynamic>))
-          .toList();
+      final userIds = list.map((row) => row['user_id'] as String);
+      final names = await fetchFullNames(_client, userIds);
+
+      return list.map((row) {
+        final map = row as Map<String, dynamic>;
+        map['profiles'] = {'full_name': names[map['user_id']]};
+        return RouteFeedback.fromJson(map);
+      }).toList();
     } catch (e, st) {
       debugPrint('fetchForRoute error: $e');
       debugPrint('$st');

@@ -36,6 +36,9 @@ migrate_working_dir/
 # Environment files
 .env
 
+# Supabase CLI local cache/temp state (not for public repo)
+supabase/.temp/
+
 # Local working notes (not for public repo)
 SECURITY_TODO.md
 
