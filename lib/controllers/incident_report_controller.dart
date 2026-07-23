@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '/models/incident_report_model.dart';
+import '/controllers/profile_lookup.dart';
 
 class IncidentReportController {
   final SupabaseClient _client = Supabase.instance.client;
@@ -53,16 +54,20 @@ class IncidentReportController {
           .from('incident_report')
           .select(
             'incident_id, route_id, user_id, incident_type, severity, '
-            'description, latitude, longitude, created_at, photo_urls, '
-            'profiles(full_name)',
+            'description, latitude, longitude, created_at, photo_urls',
           )
           .eq('route_id', routeId)
           .order('created_at', ascending: false);
 
       final list = resp as List<dynamic>;
-      return list
-          .map((row) => IncidentReport.fromJson(row as Map<String, dynamic>))
-          .toList();
+      final userIds = list.map((row) => row['user_id'] as String);
+      final names = await fetchFullNames(_client, userIds);
+
+      return list.map((row) {
+        final map = row as Map<String, dynamic>;
+        map['profiles'] = {'full_name': names[map['user_id']]};
+        return IncidentReport.fromJson(map);
+      }).toList();
     } catch (e, st) {
       debugPrint('fetchForRoute (incident_report) error: $e');
       debugPrint('$st');
@@ -139,15 +144,20 @@ class IncidentReportController {
           .select(
             'incident_id, route_id, user_id, incident_type, severity, '
             'description, latitude, longitude, created_at, photo_urls, '
-            'profiles(full_name), routes(name)',
+            'routes(name)',
           )
           .order('created_at', ascending: false)
           .limit(limit ?? 200);
 
       final list = resp as List<dynamic>;
-      return list
-          .map((row) => IncidentReport.fromJson(row as Map<String, dynamic>))
-          .toList();
+      final userIds = list.map((row) => row['user_id'] as String);
+      final names = await fetchFullNames(_client, userIds);
+
+      return list.map((row) {
+        final map = row as Map<String, dynamic>;
+        map['profiles'] = {'full_name': names[map['user_id']]};
+        return IncidentReport.fromJson(map);
+      }).toList();
     } catch (e, st) {
       debugPrint('fetchAllIncidents error: $e');
       debugPrint('$st');

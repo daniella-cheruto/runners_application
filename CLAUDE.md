@@ -32,7 +32,7 @@ Answer these questions before writing or suggesting code:
 
 ## Creating a New Supabase Table
 
-Since Oct 30, 2026, Supabase no longer grants default Data API access to new tables in `public` — a table with no explicit `GRANT` is invisible to `supabase-js`/PostgREST/GraphQL even with RLS off. There's no `supabase/migrations` folder in this repo, so tables are created directly in the dashboard SQL editor — run this template every time, before shipping any feature that relies on the new table:
+Since Oct 30, 2026, Supabase no longer grants default Data API access to new tables in `public` — a table with no explicit `GRANT` is invisible to `supabase-js`/PostgREST/GraphQL even with RLS off. Tables are still created directly in the dashboard SQL editor (not via the Supabase CLI), but every change should also be saved as a new file in `supabase/migrations/` (format: `YYYYMMDDHHMMSS_description.sql`) so there's a permanent record in the repo — run this template every time, before shipping any feature that relies on the new table:
 
 ```sql
 -- Grant access per role
