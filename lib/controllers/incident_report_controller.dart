@@ -111,7 +111,8 @@ class IncidentReportController {
     }
   }
 
-  /// Delete an incident (only if owned by the current user).
+  /// Delete an incident (only if owned by the current user). Also removes
+  /// any photos the incident had from storage.
   /// Returns `null` on success, or an error message on failure.
   Future<String?> deleteIncident(int incidentId) async {
     final user = _client.auth.currentUser;
@@ -120,11 +121,20 @@ class IncidentReportController {
     }
 
     try {
+      final existing = await _client
+          .from('incident_report')
+          .select('photo_urls')
+          .eq('incident_id', incidentId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
       await _client
           .from('incident_report')
           .delete()
           .eq('incident_id', incidentId)
           .eq('user_id', user.id);
+
+      await _deletePhotosForUrls(existing?['photo_urls']);
 
       return null;
     } catch (e, st) {
@@ -166,12 +176,21 @@ class IncidentReportController {
   }
 
   /// ADMIN: delete any incident (RLS will allow only admins to succeed).
+  /// Also removes any photos the incident had from storage.
   Future<String?> adminDeleteIncident(int incidentId) async {
     try {
+      final existing = await _client
+          .from('incident_report')
+          .select('photo_urls')
+          .eq('incident_id', incidentId)
+          .maybeSingle();
+
       await _client
           .from('incident_report')
           .delete()
           .eq('incident_id', incidentId);
+
+      await _deletePhotosForUrls(existing?['photo_urls']);
 
       return null;
     } catch (e, st) {
@@ -179,5 +198,33 @@ class IncidentReportController {
       debugPrint('$st');
       return 'Failed to delete incident.';
     }
+  }
+
+  /// Delete the storage files for a set of public photo URLs (best-effort
+  /// — failure here shouldn't block deleting the report itself).
+  Future<void> _deletePhotosForUrls(dynamic photoUrls) async {
+    if (photoUrls is! List || photoUrls.isEmpty) return;
+    try {
+      final paths = photoUrls
+          .whereType<String>()
+          .map(_extractStoragePath)
+          .whereType<String>()
+          .toList();
+      if (paths.isNotEmpty) {
+        await _client.storage.from(_bucket).remove(paths);
+      }
+    } catch (e, st) {
+      debugPrint('incident photo cleanup error (ignored): $e');
+      debugPrint('$st');
+    }
+  }
+
+  /// Extract the storage object path from a public URL like
+  /// https://xxx.supabase.co/storage/v1/object/public/incident-photos/foo.jpg
+  String? _extractStoragePath(String url) {
+    final marker = '/object/public/$_bucket/';
+    final idx = url.indexOf(marker);
+    if (idx == -1) return null;
+    return url.substring(idx + marker.length);
   }
 }
