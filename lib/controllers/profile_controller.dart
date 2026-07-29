@@ -67,7 +67,10 @@ class ProfileController {
   /// Pick image from gallery
   Future<File?> pickProfileImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
     if (pickedFile != null) return File(pickedFile.path);
     return null;
   }
